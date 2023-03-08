@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+
+<launch>
+   <node name="otomo_serial" pkg="otomo-serial" type="otomo-serial_node"></node> 
+</launch>

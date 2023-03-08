@@ -3,10 +3,13 @@
 #include <cstdlib>
 #include <vector>
 #include <functional>
+#include <iostream>
+#include <fstream>
 
 #include <ros/ros.h>
 #include <async_comm/serial.h>
 #include "otomo_msgs/Joystick.h"
+#include "otomo_msgs/otomo.pb.h"
 
 namespace otomo_serial
 {
@@ -71,11 +74,31 @@ void SerialNode::serial_cb(const uint8_t* buf, size_t len)
 
 int main(int argc, char* argv[])
 {
+  GOOGLE_PROTOBUF_VERIFY_VERSION;
+
   ros::init(argc, argv, "serial_node");
+
+  otomo::TopMsg msg;
+  otomo::Joystick joy;
+  joy.set_heading(1.0);
+  joy.set_speed(100.0);
+  msg.set_allocated_joystick(&joy);
 
   ros::NodeHandle nh;
 
+  std::string out_string;
+  if (!msg.SerializeToString(&out_string))
+  {
+    ROS_ERROR("could not write to disk");
+  }
+  else
+  {
+    ROS_ERROR("written: %ld", out_string.length());
+  }
+
   ros::spin();
+
+  google::protobuf::ShutdownProtobufLibrary();
 
   return 0;
 }
