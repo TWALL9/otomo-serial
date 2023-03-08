@@ -46,20 +46,44 @@ SerialNode::SerialNode(ros::NodeHandle& nh)
   {
     ROS_FATAL("Could not initialize serial port!!!");
   }
+  else
+  {
+    ROS_WARN("Serial initialized!");
+  }
 }
 
 void SerialNode::joystick_cb(const otomo_msgs::Joystick::ConstPtr& joystick_ros)
 {
-  // convert and send
+  otomo::TopMsg msg;
+  otomo::Joystick * joy = new otomo::Joystick();
+  joy->set_heading(joystick_ros->heading);
+  joy->set_speed(joystick_ros->speed);
+  msg.set_allocated_joystick(joy);
 
-  // encode
-  // send
-  uint8_t send_buf[10] = {0};
-  serial_->send_bytes(send_buf, sizeof(send_buf));
+  std::string out_string;
+  if (!msg.SerializeToString(&out_string))
+  {
+    ROS_ERROR("could not write joystick message to string");
+  }
+
+  serial_->send_bytes((uint8_t *)out_string.c_str(), strlen(out_string.c_str()));
 }
 
 void SerialNode::serial_cb(const uint8_t* buf, size_t len)
 {
+  // TEST: Joystick is 12 bytes long
+  if (len == 12)
+  {
+    otomo::TopMsg msg;
+    if (!msg.ParseFromArray((const void *)buf, static_cast<int>(len)))
+    {
+      ROS_ERROR("could not deserialize!");
+    }
+    else
+    {
+      ROS_WARN_THROTTLE(0.25, "joystick? %d", msg.has_joystick());
+    }
+  }
   // append
   // for (size_t i = 0; i < len; i++)
   // {
@@ -78,23 +102,9 @@ int main(int argc, char* argv[])
 
   ros::init(argc, argv, "serial_node");
 
-  otomo::TopMsg msg;
-  otomo::Joystick joy;
-  joy.set_heading(1.0);
-  joy.set_speed(100.0);
-  msg.set_allocated_joystick(&joy);
-
   ros::NodeHandle nh;
 
-  std::string out_string;
-  if (!msg.SerializeToString(&out_string))
-  {
-    ROS_ERROR("could not write to disk");
-  }
-  else
-  {
-    ROS_ERROR("written: %ld", out_string.length());
-  }
+  otomo_serial::SerialNode sn(nh);
 
   ros::spin();
 
