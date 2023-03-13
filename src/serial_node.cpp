@@ -8,6 +8,7 @@
 
 #include <ros/ros.h>
 #include <async_comm/serial.h>
+#include "otomo-serial/kiss_tnc.h"
 #include "otomo_msgs/Joystick.h"
 #include "otomo_msgs/otomo.pb.h"
 

@@ -20,9 +20,14 @@ catkin_package()
 
 include_directories(
   ${catkin_INCLUDE_DIRS}
+  ${PROJECT_SOURCE_DIR}/include
 )
 
-add_executable(${PROJECT_NAME}_node src/serial_node.cpp)
+add_executable(${PROJECT_NAME}_node 
+  src/serial_node.cpp
+  src/kiss_encode.cpp
+  src/kiss_decode.cpp
+)
 
 target_link_libraries(${PROJECT_NAME}_node
   ${catkin_LIBRARIES}
