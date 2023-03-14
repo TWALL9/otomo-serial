@@ -27,7 +27,7 @@ public:
 
   void init();
   void add_byte(const uint8_t b);
-  const std::vector<uint8_t> get_buffer();
+  std::vector<uint8_t> get_buffer();
 
 private:
   std::vector<uint8_t> buf_;
@@ -40,7 +40,8 @@ public:
   ~KissInputStream() = default;
   void init();
   int add_byte(const uint8_t b);
-  const std::vector<uint8_t> get_buffer(int & error);
+  bool is_ready();
+  std::vector<uint8_t> get_buffer(int& error, uint8_t& port);
 
 private:
   enum class KissDecodeState

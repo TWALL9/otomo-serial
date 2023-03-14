@@ -16,7 +16,6 @@ namespace otomo_serial
 {
 
 static constexpr uint32_t BAUD_RATE = 38400; // match the one from bluetooth for now
-static constexpr uint8_t SYNC[4] = {'S', 'Y', 'N', 'C'};
 
 class SerialNode
 {
@@ -28,9 +27,9 @@ public:
   void serial_cb(const uint8_t* buf, size_t len);
 
 private:
-  std::vector<uint8_t> recv_buf_;
   ros::Subscriber joystick_sub_;
   async_comm::Serial* serial_{nullptr};
+  KissInputStream recv_buf_;
 };
 
 SerialNode::SerialNode(ros::NodeHandle& nh)
@@ -71,12 +70,13 @@ void SerialNode::joystick_cb(const otomo_msgs::Joystick::ConstPtr& joystick_ros)
   const char* out_c = out_string.c_str();
   uint8_t len = static_cast<uint8_t>(strlen(out_c));
 
-  std::vector<uint8_t> buf(SYNC, SYNC + len + 1);
-  buf.push_back(len);
+  KissOutputStream out_kiss;
   for (uint8_t i = 0; i < len; i++)
   {
-    buf.push_back(static_cast<uint8_t>(out_c[i]));
+    out_kiss.add_byte(out_c[i]);
   }
+
+  auto buf = out_kiss.get_buffer();
 
   serial_->send_bytes((uint8_t *)&buf[0], buf.size());
 }
@@ -84,74 +84,37 @@ void SerialNode::joystick_cb(const otomo_msgs::Joystick::ConstPtr& joystick_ros)
 void SerialNode::serial_cb(const uint8_t* buf, size_t len)
 {
   // TEST: Joystick is 12 bytes long
-  if (buf == NULL)
+  if (buf == NULL || len == 0)
   {
     ROS_ERROR("Received empty buf!");
     return;
   }
+
   for (size_t i = 0; i < len; i++)
   {
-    recv_buf_.push_back(buf[i]);
-  }
-
-  bool first, second, third, fourth, len_is_next = false;
-  uint8_t msg_len = false;
-  uint8_t idx = 0;
-  for (std::vector<uint8_t>::iterator it = recv_buf_.begin(); it != recv_buf_.end(); ++it)
-  {
-    switch (*it)
+    int ret = recv_buf_.add_byte(buf[i]);
+    if (ret != 0)
     {
-      case(SYNC[0]):
-        first = true;
-        break;
-      case(SYNC[1]):
-        second = true;
-        break;
-      case(SYNC[2]):
-        third = true;
-        break;
-      case(SYNC[3]):
-        fourth = true;
-        break;
-      default:
-        break;
+      ROS_ERROR("Receive buffer error: %d", ret);
+      recv_buf_.init();
     }
-
-    idx++;
-
-    if (len_is_next)
+    else if (recv_buf_.is_ready())
     {
-      len_is_next = false;
-      msg_len = *it;
-      break;
-    }
+      uint8_t port;
+      std::vector<uint8_t> in_proto(recv_buf_.get_buffer(ret, port));
+      recv_buf_.init();
 
-    if (first && second && third && fourth)
-    {
-      len_is_next = true;
+      otomo::TopMsg msg;
+      if (!msg.ParseFromArray((const void *)&in_proto[0], in_proto.size()))
+      {
+        ROS_ERROR("Could not deserialize proto msg from mcu!, 0x%x, %ld", in_proto.front(), in_proto.size());
+      }
+      else
+      {
+        ROS_WARN("joystick? %d", msg.has_joystick());
+      }
     }
   }
-
-  if (msg_len != 0)
-  {
-    otomo::TopMsg msg;
-    if (!msg.ParseFromArray((const void *)&recv_buf_[idx], static_cast<int>(msg_len)))
-    {
-      ROS_ERROR("could not deserialize!");
-    }
-    else
-    {
-      ROS_WARN_THROTTLE(0.25, "joystick? %d", msg.has_joystick());
-    }
-  }
-  // append
-  // for (size_t i = 0; i < len; i++)
-  // {
-  //   serial_buf_.push_back(buf[i]);
-  // }
-
-  // parse msg
-  // publish
 }
 
 }  // otomo_serial

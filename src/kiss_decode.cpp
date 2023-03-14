@@ -51,11 +51,6 @@ int KissInputStream::add_byte(const uint8_t b)
       {
         state_ = KissDecodeState::ESCAPE_SEQUENCE;
       }
-      else if (b == TFEND || b == TFESC)
-      {
-        state_ = KissDecodeState::ERROR;
-        ret_code = ESCAPE_ERROR;
-      }
       else
       {
         buf_.push_back(b);
@@ -89,7 +84,12 @@ int KissInputStream::add_byte(const uint8_t b)
   return ret_code;
 }
 
-const std::vector<uint8_t> KissInputStream::get_buffer(int & error)
+bool KissInputStream::is_ready()
+{
+  return state_ == KissDecodeState::DONE;
+}
+
+std::vector<uint8_t> KissInputStream::get_buffer(int& error, uint8_t& port)
 {
   if (state_ != KissDecodeState::DONE)
   {
@@ -99,6 +99,8 @@ const std::vector<uint8_t> KissInputStream::get_buffer(int & error)
   }
   else
   {
+    port = buf_.front();
+    buf_.erase(buf_.begin());
     std::vector<uint8_t> out(buf_);
     return out;
   }

@@ -33,7 +33,7 @@ void KissOutputStream::add_byte(const uint8_t b)
   }
 }
 
-const std::vector<uint8_t> KissOutputStream::get_buffer()
+std::vector<uint8_t> KissOutputStream::get_buffer()
 {
   std::vector<uint8_t> out(buf_);
   out.push_back(FEND);
