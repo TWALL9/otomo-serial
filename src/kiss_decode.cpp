@@ -14,7 +14,7 @@ void KissInputStream::init()
   state_ = KissDecodeState::WAIT_FOR_START;
 }
 
-int KissInputStream::add_byte(const uint8_t b)
+int KissInputStream::addByte(const uint8_t b)
 {
   int ret_code = 0;
   switch (state_)
@@ -84,12 +84,12 @@ int KissInputStream::add_byte(const uint8_t b)
   return ret_code;
 }
 
-bool KissInputStream::is_ready()
+bool KissInputStream::isReady()
 {
   return state_ == KissDecodeState::DONE;
 }
 
-std::vector<uint8_t> KissInputStream::get_buffer(int& error, uint8_t& port)
+std::vector<uint8_t> KissInputStream::getBuffer(int& error, uint8_t& port)
 {
   if (state_ != KissDecodeState::DONE)
   {

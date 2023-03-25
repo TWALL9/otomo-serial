@@ -15,7 +15,8 @@
 namespace otomo_serial
 {
 
-static constexpr uint32_t BAUD_RATE = 38400; // match the one from bluetooth for now
+static constexpr uint32_t BT_BAUD_RATE = 38400; // match the one from bluetooth for now
+static constexpr uint32_t USB_BAUD_RATE = 115200;
 
 class SerialNode
 {
@@ -23,8 +24,8 @@ class SerialNode
 public:
   SerialNode(ros::NodeHandle& nh);
   ~SerialNode() = default;
-  void joystick_cb(const otomo_msgs::Joystick::ConstPtr& joystick_ros);
-  void serial_cb(const uint8_t* buf, size_t len);
+  void joystickCallback(const otomo_msgs::Joystick::ConstPtr& joystick_ros);
+  void serialCallback(const uint8_t* buf, size_t len);
 
 private:
   ros::Subscriber joystick_sub_;
@@ -35,11 +36,11 @@ private:
 SerialNode::SerialNode(ros::NodeHandle& nh)
 {
   std::string joy_topic("/manual/joystick");
-  joystick_sub_ = nh.subscribe<otomo_msgs::Joystick>(joy_topic, 10, &SerialNode::joystick_cb, this);
-  serial_ = new async_comm::Serial("/dev/ttyUSB0", BAUD_RATE);
+  joystick_sub_ = nh.subscribe<otomo_msgs::Joystick>(joy_topic, 10, &SerialNode::joystickCallback, this);
+  serial_ = new async_comm::Serial("/dev/ttyACM1", USB_BAUD_RATE);
 
   std::function<void(const uint8_t*, size_t)> serial_call =
-    std::bind(&SerialNode::serial_cb, this, std::placeholders::_1, std::placeholders::_2);
+    std::bind(&SerialNode::serialCallback, this, std::placeholders::_1, std::placeholders::_2);
   serial_->register_receive_callback(serial_call);
 
   // check result of this!
@@ -53,7 +54,7 @@ SerialNode::SerialNode(ros::NodeHandle& nh)
   }
 }
 
-void SerialNode::joystick_cb(const otomo_msgs::Joystick::ConstPtr& joystick_ros)
+void SerialNode::joystickCallback(const otomo_msgs::Joystick::ConstPtr& joystick_ros)
 {
   otomo::TopMsg msg;
   otomo::Joystick * joy = new otomo::Joystick();
@@ -73,15 +74,15 @@ void SerialNode::joystick_cb(const otomo_msgs::Joystick::ConstPtr& joystick_ros)
   KissOutputStream out_kiss;
   for (uint8_t i = 0; i < len; i++)
   {
-    out_kiss.add_byte(out_c[i]);
+    out_kiss.addByte(out_c[i]);
   }
 
-  auto buf = out_kiss.get_buffer();
+  auto buf = out_kiss.getBuffer();
 
   serial_->send_bytes((uint8_t *)&buf[0], buf.size());
 }
 
-void SerialNode::serial_cb(const uint8_t* buf, size_t len)
+void SerialNode::serialCallback(const uint8_t* buf, size_t len)
 {
   // TEST: Joystick is 12 bytes long
   if (buf == NULL || len == 0)
@@ -92,16 +93,16 @@ void SerialNode::serial_cb(const uint8_t* buf, size_t len)
 
   for (size_t i = 0; i < len; i++)
   {
-    int ret = recv_buf_.add_byte(buf[i]);
+    int ret = recv_buf_.addByte(buf[i]);
     if (ret != 0)
     {
       ROS_ERROR("Receive buffer error: %d", ret);
       recv_buf_.init();
     }
-    else if (recv_buf_.is_ready())
+    else if (recv_buf_.isReady())
     {
       uint8_t port;
-      std::vector<uint8_t> in_proto(recv_buf_.get_buffer(ret, port));
+      std::vector<uint8_t> in_proto(recv_buf_.getBuffer(ret, port));
       recv_buf_.init();
 
       otomo::TopMsg msg;
@@ -111,7 +112,8 @@ void SerialNode::serial_cb(const uint8_t* buf, size_t len)
       }
       else
       {
-        ROS_WARN("joystick? %d", msg.has_joystick());
+        std::string joy_yes = msg.has_joystick() ? "yes" : "no";
+        ROS_WARN("joystick? %s", joy_yes.c_str());
       }
     }
   }

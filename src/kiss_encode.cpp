@@ -15,7 +15,7 @@ void KissOutputStream::init()
   buf_.push_back(0);
 }
 
-void KissOutputStream::add_byte(const uint8_t b)
+void KissOutputStream::addByte(const uint8_t b)
 {
   switch (b)
   {
@@ -33,7 +33,7 @@ void KissOutputStream::add_byte(const uint8_t b)
   }
 }
 
-std::vector<uint8_t> KissOutputStream::get_buffer()
+std::vector<uint8_t> KissOutputStream::getBuffer()
 {
   std::vector<uint8_t> out(buf_);
   out.push_back(FEND);
