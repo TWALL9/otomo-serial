@@ -11,6 +11,7 @@
 #include "otomo-serial/kiss_tnc.h"
 #include "otomo_msgs/Joystick.h"
 #include "otomo_msgs/otomo.pb.h"
+#include "std_msgs/Bool.h"
 
 namespace otomo_serial
 {
@@ -25,10 +26,12 @@ public:
   SerialNode(ros::NodeHandle& nh);
   ~SerialNode() = default;
   void joystickCallback(const otomo_msgs::Joystick::ConstPtr& joystick_ros);
+  void fanCallback(const std_msgs::Bool::ConstPtr& fan_on);
   void serialCallback(const uint8_t* buf, size_t len);
 
 private:
   ros::Subscriber joystick_sub_;
+  ros::Subscriber fan_sub_;
   async_comm::Serial* serial_{nullptr};
   KissInputStream recv_buf_;
 };
@@ -37,6 +40,9 @@ SerialNode::SerialNode(ros::NodeHandle& nh)
 {
   std::string joy_topic("/manual/joystick");
   joystick_sub_ = nh.subscribe<otomo_msgs::Joystick>(joy_topic, 10, &SerialNode::joystickCallback, this);
+
+  fan_sub_ = nh.subscribe<std_msgs::Bool>("/manual/fan_on", 1, &SerialNode::fanCallback, this);
+
   serial_ = new async_comm::Serial("/dev/ttyACM1", USB_BAUD_RATE);
 
   std::function<void(const uint8_t*, size_t)> serial_call =
@@ -66,6 +72,33 @@ void SerialNode::joystickCallback(const otomo_msgs::Joystick::ConstPtr& joystick
   if (!msg.SerializeToString(&out_string))
   {
     ROS_ERROR("could not write joystick message to string");
+  }
+
+  const char* out_c = out_string.c_str();
+  uint8_t len = static_cast<uint8_t>(strlen(out_c));
+
+  KissOutputStream out_kiss;
+  for (uint8_t i = 0; i < len; i++)
+  {
+    out_kiss.addByte(out_c[i]);
+  }
+
+  auto buf = out_kiss.getBuffer();
+
+  serial_->send_bytes((uint8_t *)&buf[0], buf.size());
+}
+
+void SerialNode::fanCallback(const std_msgs::Bool::ConstPtr& fan_on)
+{
+  otomo::TopMsg msg;
+  otomo::FanControl * fan = new otomo::FanControl();
+  fan->set_on(fan_on->data);
+  msg.set_allocated_fan(fan);
+
+  std::string out_string;
+  if (!msg.SerializeToString(&out_string))
+  {
+    ROS_ERROR("could not serialize fan message to string");
   }
 
   const char* out_c = out_string.c_str();
