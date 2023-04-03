@@ -34,6 +34,8 @@ private:
   ros::Subscriber fan_sub_;
   async_comm::Serial* serial_{nullptr};
   KissInputStream recv_buf_;
+
+  bool encodeMessage(KissOutputStream& out, otomo::TopMsg& msg);
 };
 
 SerialNode::SerialNode(ros::NodeHandle& nh)
@@ -68,19 +70,11 @@ void SerialNode::joystickCallback(const otomo_msgs::Joystick::ConstPtr& joystick
   joy->set_speed(joystick_ros->speed);
   msg.set_allocated_joystick(joy);
 
-  std::string out_string;
-  if (!msg.SerializeToString(&out_string))
+  KissOutputStream out_kiss;
+
+  if (!encodeMessage(out_kiss, msg))
   {
     ROS_ERROR("could not write joystick message to string");
-  }
-
-  const char* out_c = out_string.c_str();
-  uint8_t len = static_cast<uint8_t>(strlen(out_c));
-
-  KissOutputStream out_kiss;
-  for (uint8_t i = 0; i < len; i++)
-  {
-    out_kiss.addByte(out_c[i]);
   }
 
   auto buf = out_kiss.getBuffer();
@@ -95,24 +89,35 @@ void SerialNode::fanCallback(const std_msgs::Bool::ConstPtr& fan_on)
   fan->set_on(fan_on->data);
   msg.set_allocated_fan(fan);
 
-  std::string out_string;
-  if (!msg.SerializeToString(&out_string))
+  KissOutputStream out_kiss;
+
+  if (!encodeMessage(out_kiss, msg))
   {
     ROS_ERROR("could not serialize fan message to string");
-  }
-
-  const char* out_c = out_string.c_str();
-  uint8_t len = static_cast<uint8_t>(strlen(out_c));
-
-  KissOutputStream out_kiss;
-  for (uint8_t i = 0; i < len; i++)
-  {
-    out_kiss.addByte(out_c[i]);
   }
 
   auto buf = out_kiss.getBuffer();
 
   serial_->send_bytes((uint8_t *)&buf[0], buf.size());
+}
+
+bool SerialNode::encodeMessage(KissOutputStream& out_kiss, otomo::TopMsg& msg)
+{
+  std::string out_string;
+  if (!msg.SerializeToString(&out_string))
+  {
+    return false;
+  }
+
+  const char* out_c = out_string.c_str();
+  size_t len = out_string.size();
+
+  for (uint8_t i = 0; i < len; i++)
+  {
+    out_kiss.addByte(out_c[i]);
+  }
+
+  return true;
 }
 
 void SerialNode::serialCallback(const uint8_t* buf, size_t len)
@@ -143,10 +148,9 @@ void SerialNode::serialCallback(const uint8_t* buf, size_t len)
       {
         ROS_ERROR("Could not deserialize proto msg from mcu!, 0x%x, %ld", in_proto.front(), in_proto.size());
       }
-      else
+      else if (msg.has_joystick())
       {
-        std::string joy_yes = msg.has_joystick() ? "yes" : "no";
-        ROS_WARN("joystick? %s", joy_yes.c_str());
+        ROS_WARN("joystick? yes");
       }
     }
   }
