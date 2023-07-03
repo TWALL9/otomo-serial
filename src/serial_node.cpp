@@ -12,6 +12,7 @@
 #include "otomo_msgs/Joystick.h"
 #include "otomo_msgs/otomo.pb.h"
 #include "std_msgs/Bool.h"
+#include "std_msgs/Float32.h"
 
 namespace otomo_serial
 {
@@ -32,6 +33,10 @@ public:
 private:
   ros::Subscriber joystick_sub_;
   ros::Subscriber fan_sub_;
+
+  ros::Publisher left_motor_pub_;
+  ros::Publisher right_motor_pub_;
+  ros::Publisher fan_state_pub_;
   async_comm::Serial* serial_{nullptr};
   KissInputStream recv_buf_;
 
@@ -44,6 +49,14 @@ SerialNode::SerialNode(ros::NodeHandle& nh)
   joystick_sub_ = nh.subscribe<otomo_msgs::Joystick>(joy_topic, 10, &SerialNode::joystickCallback, this);
 
   fan_sub_ = nh.subscribe<std_msgs::Bool>("/manual/fan_on", 1, &SerialNode::fanCallback, this);
+
+  left_motor_pub_ = nh.advertise<std_msgs::Float32>("/motors/left/speed", 5);
+  right_motor_pub_ = nh.advertise<std_msgs::Float32>("/motors/right/speed", 5);
+  fan_state_pub_ = nh.advertise<std_msgs::Bool>("/motors/fan/active", 1, true);
+
+  std_msgs::Bool fan_msg;
+  fan_msg.data = false;
+  fan_state_pub_.publish(fan_msg);
 
   serial_ = new async_comm::Serial("/dev/ttyACM1", USB_BAUD_RATE);
 
@@ -151,6 +164,22 @@ void SerialNode::serialCallback(const uint8_t* buf, size_t len)
       else if (msg.has_joystick())
       {
         ROS_WARN("joystick? yes");
+      }
+      else if (msg.has_state())
+      {
+        ROS_INFO_THROTTLE(0.5, "Got robot state!");
+        const auto& state = msg.state();
+
+        std_msgs::Float32 msg;
+        msg.data = state.left_motor().angular_velocity();
+        left_motor_pub_.publish(msg);
+
+        msg.data = state.right_motor().angular_velocity();
+        right_motor_pub_.publish(msg);
+
+        std_msgs::Bool fan_msg;
+        msg.data = state.fan_on();
+        fan_state_pub_.publish(fan_msg);
       }
     }
   }
