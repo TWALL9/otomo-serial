@@ -58,7 +58,7 @@ SerialNode::SerialNode(ros::NodeHandle& nh)
   fan_msg.data = false;
   fan_state_pub_.publish(fan_msg);
 
-  serial_ = new async_comm::Serial("/dev/ttyACM1", USB_BAUD_RATE);
+  serial_ = new async_comm::Serial("/dev/ttyOtomo", USB_BAUD_RATE);
 
   std::function<void(const uint8_t*, size_t)> serial_call =
     std::bind(&SerialNode::serialCallback, this, std::placeholders::_1, std::placeholders::_2);
@@ -159,11 +159,7 @@ void SerialNode::serialCallback(const uint8_t* buf, size_t len)
       otomo::TopMsg msg;
       if (!msg.ParseFromArray((const void *)&in_proto[0], in_proto.size()))
       {
-        ROS_ERROR("Could not deserialize proto msg from mcu!, 0x%x, %ld", in_proto.front(), in_proto.size());
-      }
-      else if (msg.has_joystick())
-      {
-        ROS_WARN("joystick? yes");
+        ROS_ERROR("Could not deserialize proto msg from mcu!, 0x%x, %d", in_proto.front(), in_proto.size());
       }
       else if (msg.has_state())
       {
